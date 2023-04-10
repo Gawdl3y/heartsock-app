@@ -62,6 +62,7 @@ class HeartsockService : LifecycleService() {
 	 */
 	suspend fun connect() {
 		Log.d(TAG, "connect()")
+		startSelf()
 
 		// Get the address and port to use
 		var address = settingsRepository.serverAddress.first()
@@ -81,7 +82,6 @@ class HeartsockService : LifecycleService() {
 
 		// Start connection
 		websocketActive = true
-		startService(Intent(applicationContext, HeartsockService::class.java))
 		updateStatus(ServiceStatus.CONNECTING)
 		websocketClient.connect(address, port)
 
@@ -104,7 +104,10 @@ class HeartsockService : LifecycleService() {
 			launch { monitorHeartRate() }
 			launch { monitorBattery() }
 		}
-		monitorJob?.invokeOnCompletion { monitorJob = null }
+		monitorJob?.invokeOnCompletion {
+			monitorJob = null
+			stopSelfIfNothingRunning()
+		}
 	}
 
 	/**
@@ -132,7 +135,8 @@ class HeartsockService : LifecycleService() {
 	 * Scans for a valid WebSocket server to use
 	 */
 	suspend fun scan(updateSettings: Boolean = false): ScanResult {
-		Log.d(TAG, "scan()")
+		Log.d(TAG, "scan(updateSettings = $updateSettings)")
+		startSelf()
 
 		// Find out whether we'll need to wait for WiFi
 		val wifiConnected = discoveryManager.isConnectedToWifi()
@@ -145,9 +149,10 @@ class HeartsockService : LifecycleService() {
 			scanJob = lifecycleScope.async {
 				// Wait for a WiFi connection
 				if (!wifiConnected) {
+					Log.i(TAG, "Waiting for WiFi connection...")
 					val network = withTimeoutOrNull(60000L) { discoveryManager.requestWifi().firstOrNull() }
 					if (network == null) {
-						Log.i(TAG, "Scan couldn't get a WiFi connection")
+						Log.i(TAG, "Scan couldn't get a WiFi connection after 60s")
 						return@async ScanResult.NoWifi
 					}
 
@@ -192,6 +197,7 @@ class HeartsockService : LifecycleService() {
 			scanJob = null
 			preScanStatus?.let { updateStatus(it, true) }
 			preScanStatus = null
+			stopSelfIfNothingRunning()
 		}
 	}
 
@@ -281,10 +287,31 @@ class HeartsockService : LifecycleService() {
 //	}
 
 	/**
-	 * Starts the service in the foreground
+	 * Starts the service
+	 */
+	private fun startSelf() {
+		Log.d(TAG, "Starting")
+		startService(Intent(applicationContext, HeartsockService::class.java))
+	}
+
+	/**
+	 * Stops the service if there isn't an active monitor or scan job and the websocket isn't connected
+	 */
+	private fun stopSelfIfNothingRunning() {
+		if (websocketActive || monitorJob != null || scanJob != null) {
+			Log.d(TAG, "Not stopping as there is an active monitor or scan job, or the websocket is active")
+			return
+		}
+
+		Log.d(TAG, "Stopping")
+		stopSelf()
+	}
+
+	/**
+	 * Puts the service in the foreground
 	 */
 	private fun enterForeground() {
-		Log.d(TAG, "Starting foreground service")
+		Log.d(TAG, "Entering foreground")
 		startForeground(NOTIFICATION_ID, buildNotification(getString(statusRepository.status.value.stringResource)))
 		runningInForeground = true
 //		setWakeAlarm()
@@ -294,7 +321,7 @@ class HeartsockService : LifecycleService() {
 	 * Removes the service from the foreground
 	 */
 	private fun leaveForeground() {
-		Log.d(TAG, "Stopping foreground service")
+		Log.d(TAG, "Leaving foreground")
 		stopForeground(STOP_FOREGROUND_REMOVE)
 //		wakeLock?.release()
 		runningInForeground = false
@@ -318,7 +345,7 @@ class HeartsockService : LifecycleService() {
 	 * Builds a notification and ongoing activity
 	 */
 	private fun buildNotification(statusText: String): Notification {
-		Log.d(TAG, "buildNotification()")
+		Log.d(TAG, "buildNotification(statusText = $statusText)")
 		val titleText = getString(R.string.app_name)
 
 		// Set up pending intents
@@ -402,6 +429,11 @@ class HeartsockService : LifecycleService() {
 		)
 	}
 
+	override fun onDestroy() {
+		super.onDestroy()
+		Log.d(TAG, "onDestroy()")
+	}
+
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 		super.onStartCommand(intent, flags, startId)
 		Log.d(TAG, "onStartCommand()")
@@ -437,7 +469,7 @@ class HeartsockService : LifecycleService() {
 	}
 
 	override fun onUnbind(intent: Intent?): Boolean {
-		Log.d(TAG, "onUnbind()")
+		Log.d(TAG, "onUnbind() configurationChange = $configurationChange")
 		if (!configurationChange && (websocketActive || scanJob != null)) {
 			enterForeground()
 		}
@@ -446,6 +478,7 @@ class HeartsockService : LifecycleService() {
 
 	override fun onConfigurationChanged(newConfig: Configuration) {
 		super.onConfigurationChanged(newConfig)
+		Log.d(TAG, "onConfigurationChanged()")
 		configurationChange = true
 	}
 
