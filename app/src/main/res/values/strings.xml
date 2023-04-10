@@ -29,7 +29,7 @@
     <string name="status_connecting">Connecting…</string>
     <string name="status_reconnecting">Reconnecting…</string>
     <string name="status_scanning">Scanning…</string>
-    <string name="status_awaiting_wifi">Scan needs WiFi…</string>
+    <string name="status_awaiting_wifi">Waiting for WiFi…</string>
 
     <!-- Errors -->
     <string name="error_connection_generic">Connection failed:\n%1$s</string>

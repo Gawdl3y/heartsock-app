@@ -104,14 +104,6 @@ fun SettingsScreen(
 
 		// Scan for server
 		item {
-			val progressTransition = updateTransition((1F - progress.value).coerceAtLeast(0F), label = "Progress")
-			val progressAnimated by progressTransition.animateFloat(
-				label = "Progress",
-				transitionSpec = {
-					tween(durationMillis = 500)
-				}
-			) { it }
-
 			Chip(
 				modifier = Modifier.fillMaxWidth(),
 				colors = ChipDefaults.secondaryChipColors(),
@@ -125,9 +117,27 @@ fun SettingsScreen(
 						Text(text)
 					}
 				},
+				secondaryLabel = {
+					AnimatedContent(
+						targetState = when (status.value) {
+							ServiceStatus.SCANNING, ServiceStatus.AWAITING_WIFI -> stringResource(status.value.stringResource)
+							else -> null
+						}
+					) { text ->
+						if (text != null) Text(text)
+					}
+				},
 				icon = {
-					Crossfade(status.value) {
-						when (it) {
+					Crossfade(status.value) { status ->
+						val progressTransition = updateTransition((1F - progress.value).coerceAtLeast(0F), label = "Progress")
+						val progressAnimated by progressTransition.animateFloat(
+							label = "Progress",
+							transitionSpec = {
+								tween(durationMillis = 500)
+							}
+						) { it }
+
+						when (status) {
 							ServiceStatus.SCANNING -> CircularProgressIndicator(
 								progress = progressAnimated,
 								modifier = Modifier
@@ -149,7 +159,11 @@ fun SettingsScreen(
 						}
 					}
 				},
-				onClick = { onActionScan(status.value == ServiceStatus.SCANNING) }
+				onClick = {
+					onActionScan(
+						status.value == ServiceStatus.SCANNING || status.value == ServiceStatus.AWAITING_WIFI
+					)
+				}
 			)
 		}
 
