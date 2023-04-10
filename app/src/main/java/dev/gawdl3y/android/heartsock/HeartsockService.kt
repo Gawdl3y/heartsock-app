@@ -214,7 +214,7 @@ class HeartsockService : LifecycleService() {
 		}
 
 		if (runningInForeground) {
-			notificationManager.notify(NOTIFICATION_ID, buildNotification(getString(status.stringResource)))
+			notificationManager.notify(NOTIFICATION_ID, buildNotification(status))
 		}
 	}
 
@@ -312,7 +312,7 @@ class HeartsockService : LifecycleService() {
 	 */
 	private fun enterForeground() {
 		Log.d(TAG, "Entering foreground")
-		startForeground(NOTIFICATION_ID, buildNotification(getString(statusRepository.status.value.stringResource)))
+		startForeground(NOTIFICATION_ID, buildNotification(statusRepository.status.value))
 		runningInForeground = true
 //		setWakeAlarm()
 	}
@@ -344,9 +344,10 @@ class HeartsockService : LifecycleService() {
 	/**
 	 * Builds a notification and ongoing activity
 	 */
-	private fun buildNotification(statusText: String): Notification {
-		Log.d(TAG, "buildNotification(statusText = $statusText)")
+	private fun buildNotification(status: ServiceStatus): Notification {
+		Log.d(TAG, "buildNotification(status = $status)")
 		val titleText = getString(R.string.app_name)
+		val statusText = getString(status.stringResource)
 
 		// Set up pending intents
 		val launchIntent = Intent(this, MainActivity::class.java)
@@ -379,11 +380,24 @@ class HeartsockService : LifecycleService() {
 				getString(R.string.action_launch),
 				launchIntent
 			)
-			.addAction(
-				R.drawable.ic_baseline_link_off_24,
-				getString(R.string.action_disconnect),
-				disconnectIntent
-			)
+
+		// Add the disconnect/stop action
+		when (status) {
+			ServiceStatus.SCANNING, ServiceStatus.AWAITING_WIFI -> {
+				notificationBuilder.addAction(
+					R.drawable.ic_outline_cancel_24,
+					getString(R.string.action_cancel_scan),
+					disconnectIntent
+				)
+			}
+			else -> {
+				notificationBuilder.addAction(
+					R.drawable.ic_baseline_link_off_24,
+					getString(R.string.action_disconnect),
+					disconnectIntent
+				)
+			}
+		}
 
 		// Build the ongoing activity
 		val ongoingActivity = OngoingActivity.Builder(applicationContext, NOTIFICATION_ID, notificationBuilder)
