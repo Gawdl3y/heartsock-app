@@ -25,10 +25,10 @@ import dev.gawdl3y.android.heartsock.data.SettingsRepository
 import dev.gawdl3y.android.heartsock.data.StatusRepository
 import dev.gawdl3y.android.heartsock.net.DiscoveryManager
 import dev.gawdl3y.android.heartsock.net.WebSocketClient
+import dev.gawdl3y.android.heartsock.net.WifiNetworkRequester
 import dev.gawdl3y.android.heartsock.ui.theme.wearColorPalette
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.*
 import okhttp3.OkHttpClient
 
 class HeartsockService : LifecycleService() {
@@ -139,18 +139,21 @@ class HeartsockService : LifecycleService() {
 		startSelf()
 
 		// Find out whether we'll need to wait for WiFi
-		val wifiConnected = discoveryManager.isConnectedToWifi()
+		val wifiRequester = WifiNetworkRequester(getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager)
+		val alreadyOnWifi = wifiRequester.isDeviceOnWifi()
 
 		// Store previous state and update the status
 		preScanStatus = statusRepository.status.value
-		updateStatus(if (wifiConnected) ServiceStatus.SCANNING else ServiceStatus.AWAITING_WIFI, true)
+		updateStatus(if (alreadyOnWifi) ServiceStatus.SCANNING else ServiceStatus.AWAITING_WIFI, true)
 
 		try {
 			scanJob = lifecycleScope.async {
 				// Wait for a WiFi connection
-				if (!wifiConnected) {
+				if (!alreadyOnWifi) {
 					Log.i(TAG, "Waiting for WiFi connection...")
-					val network = withTimeoutOrNull(60000L) { discoveryManager.requestWifi().firstOrNull() }
+
+					val wifiFlow = wifiRequester.request()
+					val network = withTimeoutOrNull(60000L) { wifiFlow.filterNotNull().firstOrNull() }
 					if (network == null) {
 						Log.i(TAG, "Scan couldn't get a WiFi connection after 60s")
 						return@async ScanResult.NoWifi
@@ -197,6 +200,7 @@ class HeartsockService : LifecycleService() {
 			scanJob = null
 			preScanStatus?.let { updateStatus(it, true) }
 			preScanStatus = null
+			wifiRequester.release()
 			stopSelfIfNothingRunning()
 		}
 	}
@@ -424,10 +428,7 @@ class HeartsockService : LifecycleService() {
 //		powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
 //		alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
 		healthManager = HealthServicesManager(HealthServices.getClient(application))
-		discoveryManager = DiscoveryManager(
-			getSystemService(Context.NSD_SERVICE) as NsdManager,
-			getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-		)
+		discoveryManager = DiscoveryManager(getSystemService(Context.NSD_SERVICE) as NsdManager)
 
 //		alarmIntent = Intent(this, WebSocketService::class.java)
 //			.putExtra(EXTRA_WAKE_ALARM, true)

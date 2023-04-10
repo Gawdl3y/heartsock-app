@@ -1,9 +1,5 @@
 package dev.gawdl3y.android.heartsock.net
 
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.util.Log
@@ -17,7 +13,7 @@ import java.net.InetAddress
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
-class DiscoveryManager(private val nsdManager: NsdManager, private val connectivityManager: ConnectivityManager) {
+class DiscoveryManager(private val nsdManager: NsdManager) {
 	/**
 	 * Finds the first usable server that is discovered and resolved successfully
 	 */
@@ -105,52 +101,6 @@ class DiscoveryManager(private val nsdManager: NsdManager, private val connectiv
 
 			Log.d(TAG, "Resolving service: $service")
 			nsdManager.resolveService(service, listener)
-		}
-	}
-
-	/**
-	 * Checks whether the device is currently connected to WiFi
-	 */
-	fun isConnectedToWifi(): Boolean {
-		val network = connectivityManager.activeNetwork ?: return false
-		val capabilities = connectivityManager.getNetworkCapabilities(network)
-		return capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ?: false
-	}
-
-	/**
-	 * Requests a WiFi connection. This is useful for service discovery because DNS-SD does not appear to function
-	 * over the Bluetooth proxy currently.
-	 */
-	fun requestWifi() = callbackFlow {
-		// Create a network callback
-		val callback = object : ConnectivityManager.NetworkCallback() {
-			override fun onAvailable(network: Network) {
-				super.onAvailable(network)
-				Log.d(TAG, "WiFi network available: $network")
-				connectivityManager.bindProcessToNetwork(network)
-				trySendBlocking(network)
-			}
-
-			override fun onLost(network: Network) {
-				super.onLost(network)
-				Log.d(TAG, "WiFi network lost: $network")
-				trySendBlocking(null)
-			}
-		}
-
-		// Request WiFi
-		Log.d(TAG, "Requesting WiFi connectivity - registering network listener")
-		connectivityManager.requestNetwork(
-			NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(),
-			callback
-		)
-
-		// Shut down when the flow is done
-		awaitClose {
-			Log.d(TAG, "Unregistering network listener")
-			runBlocking {
-				connectivityManager.unregisterNetworkCallback(callback)
-			}
 		}
 	}
 
