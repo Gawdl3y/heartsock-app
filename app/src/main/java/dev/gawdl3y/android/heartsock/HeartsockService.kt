@@ -62,7 +62,6 @@ class HeartsockService : LifecycleService() {
 	 */
 	suspend fun connect() {
 		Log.d(TAG, "connect()")
-		startSelf()
 
 		// Get the address and port to use
 		var address = settingsRepository.serverAddress.first()
@@ -71,7 +70,7 @@ class HeartsockService : LifecycleService() {
 		// Perform a scan if we don't have a server address
 		if (address.isBlank()) {
 			Log.i(TAG, "No server address specified, scanning for one to use...")
-			val server = when (val result = scan()) {
+			val server = when (val result = scan(fromConnect = true)) {
 				is ScanResult.Server -> result.server
 				is ScanResult.NoServer -> throw IllegalStateException("No server to connect to")
 				is ScanResult.NoWifi -> throw IllegalStateException("Unable to get WiFi connection")
@@ -81,6 +80,7 @@ class HeartsockService : LifecycleService() {
 		}
 
 		// Start connection
+		startSelf()
 		websocketActive = true
 		updateStatus(ServiceStatus.CONNECTING)
 		websocketClient.connect(address, port)
@@ -134,7 +134,7 @@ class HeartsockService : LifecycleService() {
 	/**
 	 * Scans for a valid WebSocket server to use
 	 */
-	suspend fun scan(updateSettings: Boolean = false): ScanResult {
+	suspend fun scan(updateSettings: Boolean = false, fromConnect: Boolean = false): ScanResult {
 		Log.d(TAG, "scan(updateSettings = $updateSettings)")
 		startSelf()
 
@@ -201,7 +201,7 @@ class HeartsockService : LifecycleService() {
 			preScanStatus?.let { updateStatus(it, true) }
 			preScanStatus = null
 			wifiRequester.release()
-			stopSelfIfNothingRunning()
+			if (!fromConnect) stopSelfIfNothingRunning()
 		}
 	}
 
