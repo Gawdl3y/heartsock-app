@@ -17,7 +17,7 @@ fun ThemeScalingLazyColumn(
 	content: ScalingLazyListScope.() -> Unit
 ) {
 	val columnState = remember {
-		val columnState = ScalingLazyColumnState()
+		val columnState = ScalingLazyColumnState(rotaryMode = ScalingLazyColumnState.RotaryMode.Scroll)
 		if (state != null) columnState.state = state
 		columnState
 	}
