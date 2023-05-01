@@ -9,7 +9,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class WifiNetworkRequester(private val connectivityManager: ConnectivityManager) : ConnectivityManager.NetworkCallback() {
+class WifiNetworkRequester(private val connectivityManager: ConnectivityManager) :
+	ConnectivityManager.NetworkCallback() {
 	private var _network: MutableStateFlow<Network?>? = null
 
 	/**
@@ -64,7 +65,7 @@ class WifiNetworkRequester(private val connectivityManager: ConnectivityManager)
 		_network?.value = null
 	}
 
-	companion object  {
+	companion object {
 		private const val TAG = "WifiNetworkRequester"
 	}
 }

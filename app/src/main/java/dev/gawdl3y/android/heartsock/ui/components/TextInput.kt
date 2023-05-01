@@ -32,7 +32,7 @@ fun TextInput(
 
 	Chip(
 		label = { Text(label) },
-		secondaryLabel = { Text(if (value == null || value.isEmpty()) placeholder else value) },
+		secondaryLabel = { Text(if (value.isNullOrEmpty()) placeholder else value) },
 		colors = ChipDefaults.secondaryChipColors(),
 		modifier = Modifier.fillMaxWidth(),
 		onClick = {

@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.hardware.SensorManager
 import android.net.ConnectivityManager
 import android.net.nsd.NsdManager
 import android.os.BatteryManager
@@ -27,15 +28,22 @@ import dev.gawdl3y.android.heartsock.net.DiscoveryManager
 import dev.gawdl3y.android.heartsock.net.WebSocketClient
 import dev.gawdl3y.android.heartsock.net.WifiNetworkRequester
 import dev.gawdl3y.android.heartsock.ui.theme.wearColorPalette
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 
 class HeartsockService : LifecycleService() {
 	private lateinit var notificationManager: NotificationManager
 	private lateinit var batteryManager: BatteryManager
 
-//	private lateinit var powerManager: PowerManager
+	//	private lateinit var powerManager: PowerManager
 //	private lateinit var alarmManager: AlarmManager
 	private lateinit var healthManager: HealthServicesManager
 	private lateinit var discoveryManager: DiscoveryManager
@@ -51,7 +59,7 @@ class HeartsockService : LifecycleService() {
 	private var runningInForeground = false
 	private var websocketActive = false
 
-//	private var wakeLock: PowerManager.WakeLock? = null
+	//	private var wakeLock: PowerManager.WakeLock? = null
 	private var monitorJob: Job? = null
 	private var scanJob: Deferred<ScanResult>? = null
 	private var preScanStatus: ServiceStatus? = null
@@ -237,12 +245,15 @@ class HeartsockService : LifecycleService() {
 					tearDown()
 					return@collect
 				}
+
 				WebSocketClient.State.CONNECTING -> updateStatus(
 					if (websocketClient.isReconnecting()) ServiceStatus.RECONNECTING else ServiceStatus.CONNECTING
 				)
+
 				WebSocketClient.State.CLOSED -> updateStatus(
 					if (websocketClient.isReconnecting()) ServiceStatus.RECONNECTING else ServiceStatus.DISCONNECTED
 				)
+
 				else -> {}
 			}
 		}
@@ -252,11 +263,22 @@ class HeartsockService : LifecycleService() {
 	 * Collects heart rate data and sends it to the WebSocket if it is available
 	 */
 	private suspend fun monitorHeartRate() {
+		val useSensorManager = settingsRepository.useSensorManager.first()
+
+		if (useSensorManager) monitorHeartRateWithSensorManager()
+		else monitorHeartRateWithMeasureClient()
+	}
+
+	/**
+	 * Collects heart rate data and sends it to the WebSocket if it's available via the MeasureClient
+	 */
+	private suspend fun monitorHeartRateWithMeasureClient() {
 		healthManager.heartRateMeasureFlow().collect {
 			when (it) {
 				is MeasureMessage.MeasureAvailability -> {
 					Log.d(TAG, "Heart rate availability changed: ${it.availability}")
 				}
+
 				is MeasureMessage.MeasureData -> {
 					val bpm = it.data.last().value
 					Log.d(TAG, "Heart rate update: $bpm")
@@ -264,6 +286,18 @@ class HeartsockService : LifecycleService() {
 					websocketClient.sendBpm(bpm)
 				}
 			}
+		}
+	}
+
+	/**
+	 * Collects heart rate data and sends it to the WebSocket if it's available via the SensorManager
+	 */
+	private suspend fun monitorHeartRateWithSensorManager() {
+		healthManager.heartRateSensorFlow().collect {
+			val bpm = it.toDouble()
+			Log.d(TAG, "Heart rate update: $bpm")
+			statusRepository.setBpm(bpm)
+			websocketClient.sendBpm(bpm)
 		}
 	}
 
@@ -394,6 +428,7 @@ class HeartsockService : LifecycleService() {
 					disconnectIntent
 				)
 			}
+
 			else -> {
 				notificationBuilder.addAction(
 					R.drawable.ic_baseline_link_off_24,
@@ -427,7 +462,10 @@ class HeartsockService : LifecycleService() {
 		batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
 //		powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
 //		alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-		healthManager = HealthServicesManager(HealthServices.getClient(application))
+		healthManager = HealthServicesManager(
+			HealthServices.getClient(application),
+			getSystemService(Context.SENSOR_SERVICE) as SensorManager
+		)
 		discoveryManager = DiscoveryManager(getSystemService(Context.NSD_SERVICE) as NsdManager)
 
 //		alarmIntent = Intent(this, WebSocketService::class.java)
@@ -512,7 +550,8 @@ class HeartsockService : LifecycleService() {
 		private const val TAG = "HeartsockService"
 		private const val PACKAGE_NAME = "dev.gawdl3y.android.heartsock"
 		private const val EXTRA_DISCONNECT_FROM_NOTIFICATION = "$PACKAGE_NAME.extra.DISCONNECT_FROM_NOTIFICATION"
-//		private const val EXTRA_WAKE_ALARM = "$PACKAGE_NAME.extra.WAKE_ALARM"
+
+		//		private const val EXTRA_WAKE_ALARM = "$PACKAGE_NAME.extra.WAKE_ALARM"
 		private const val NOTIFICATION_ID = 1337
 		private const val NOTIFICATION_CHANNEL_ID = "websocket_active"
 	}

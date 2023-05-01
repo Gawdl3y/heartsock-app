@@ -17,6 +17,10 @@ class SettingsRepository private constructor(
 	val ambientMode = settingsDataStore.ambientMode
 	suspend fun setAmbientMode(ambientMode: Boolean?) = settingsDataStore.setAmbientMode(ambientMode)
 
+	val useSensorManager = settingsDataStore.useSensorManager
+	suspend fun setUseSensorManager(useSensorManager: Boolean?) =
+		settingsDataStore.setUseSensorManager(useSensorManager)
+
 //	val wakeFrequency = settingsDataStore.wakeFrequency
 //	suspend fun setWakeFrequency(wakeFrequency: Int?) = settingsDataStore.setWakeFrequency(wakeFrequency)
 

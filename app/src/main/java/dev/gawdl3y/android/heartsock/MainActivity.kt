@@ -9,29 +9,35 @@ import android.os.IBinder
 import android.util.Log
 import android.view.WindowManager
 import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.wear.ambient.AmbientModeSupport
+import androidx.wear.ambient.AmbientLifecycleObserver
+import androidx.wear.ambient.AmbientLifecycleObserverInterface
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material.curvedText
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.google.android.horologist.compose.navscaffold.WearNavScaffold
-import com.google.android.horologist.compose.snackbar.SnackbarData
 import dev.gawdl3y.android.heartsock.data.ServiceStatus
 import dev.gawdl3y.android.heartsock.data.SettingsRepository
-import dev.gawdl3y.android.heartsock.net.DiscoveryManager
 import dev.gawdl3y.android.heartsock.ui.mainScreen
 import dev.gawdl3y.android.heartsock.ui.navigateToSettings
 import dev.gawdl3y.android.heartsock.ui.settingsScreen
 import dev.gawdl3y.android.heartsock.ui.theme.HeartsockTheme
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.EOFException
@@ -40,11 +46,10 @@ import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 
-class MainActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvider {
+class MainActivity : ComponentActivity() {
 	private lateinit var settingsRepository: SettingsRepository
 	private lateinit var permissionLauncher: ActivityResultLauncher<String>
 	private var websocketService: HeartsockService? = null
-	private val ambientCallbackState = AmbientCallbackState()
 
 	private val websocketServiceConnection = object : ServiceConnection {
 		override fun onServiceConnected(name: ComponentName, service: IBinder) {
@@ -60,8 +65,6 @@ class MainActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvi
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		Log.d(TAG, "onCreate()")
-
-		AmbientModeSupport.attach(this)
 
 		permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
 			when (it) {
@@ -94,8 +97,6 @@ class MainActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvi
 		super.onStop()
 	}
 
-	override fun getAmbientCallback(): AmbientModeSupport.AmbientCallback = ambientCallbackState
-
 	private fun showException(exception: Exception) {
 		val (text, duration) = when (exception) {
 			is SocketTimeoutException -> Pair(getString(R.string.error_connection_timeout), Toast.LENGTH_SHORT)
@@ -107,16 +108,53 @@ class MainActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvi
 				} else {
 					Pair(getString(R.string.error_connection_generic, exception.toString()), Toast.LENGTH_LONG)
 				}
+
 			is CancellationException -> Pair("", 0)
 			is IllegalStateException -> when (exception.message) {
 				"No server to connect to" -> Pair(getString(R.string.scan_failure), Toast.LENGTH_SHORT)
 				"Unable to get WiFi connection" -> Pair(getString(R.string.scan_failure_wifi), Toast.LENGTH_SHORT)
 				else -> Pair(getString(R.string.error_connection_generic, exception.toString()), Toast.LENGTH_LONG)
 			}
+
 			is EOFException -> Pair("", 0)
 			else -> Pair(getString(R.string.error_connection_generic, exception.toString()), Toast.LENGTH_LONG)
 		}
 		if (text.isNotEmpty()) Toast.makeText(this, text, duration).show()
+	}
+
+	private fun ambientFlow() = callbackFlow {
+		val listener = object : AmbientLifecycleObserverInterface.AmbientLifecycleCallback {
+			override fun onEnterAmbient(ambientDetails: AmbientLifecycleObserverInterface.AmbientDetails) {
+				super.onEnterAmbient(ambientDetails)
+				Log.d(TAG, "onEnterAmbient()")
+				trySendBlocking(
+					AmbientState.Ambient(
+						deviceHasLowBitAmbient = ambientDetails.deviceHasLowBitAmbient,
+						burnInProtectionRequired = ambientDetails.burnInProtectionRequired
+					)
+				)
+			}
+
+			override fun onUpdateAmbient() {
+				super.onUpdateAmbient()
+				Log.d(TAG, "onUpdateAmbient()")
+			}
+
+			override fun onExitAmbient() {
+				super.onExitAmbient()
+				Log.d(TAG, "onExitAmbient()")
+				trySendBlocking(AmbientState.Interactive)
+			}
+		}
+
+		Log.d(TAG, "Starting ambient lifecycle flow")
+		val observer = AmbientLifecycleObserver(this@MainActivity, listener)
+		lifecycle.addObserver(observer)
+
+		awaitClose {
+			Log.d(TAG, "Closing ambient lifecycle flow")
+			lifecycle.removeObserver(observer)
+		}
 	}
 
 	@Composable
@@ -126,6 +164,10 @@ class MainActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvi
 			val coroutineScope = rememberCoroutineScope()
 			val status =
 				(application as HeartsockApplication).statusRepository.status.collectAsState(initial = ServiceStatus.DISCONNECTED)
+			val ambient = ambientFlow().collectAsStateWithLifecycle(
+				initialValue = AmbientState.Interactive,
+				lifecycle = lifecycle
+			)
 
 			WearNavScaffold(
 				startDestination = "main",
@@ -196,32 +238,11 @@ class MainActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvi
 	}
 }
 
-private class AmbientCallbackState : AmbientModeSupport.AmbientCallback() {
-	var ambientState by mutableStateOf<AmbientState>(AmbientState.Interactive)
-
-	override fun onEnterAmbient(ambientDetails: Bundle) {
-		super.onEnterAmbient(ambientDetails)
-		val isLowBitAmbient = ambientDetails.getBoolean(
-			AmbientModeSupport.EXTRA_LOWBIT_AMBIENT,
-			false
-		)
-		val doBurnInProtection = ambientDetails.getBoolean(
-			AmbientModeSupport.EXTRA_BURN_IN_PROTECTION,
-			false
-		)
-
-		ambientState = AmbientState.Ambient(
-			isLowBitAmbient = isLowBitAmbient,
-			doBurnInProtection = doBurnInProtection
-		)
-	}
-}
-
 sealed interface AmbientState {
 	object Interactive : AmbientState
 
 	data class Ambient(
-		val isLowBitAmbient: Boolean,
-		val doBurnInProtection: Boolean
+		val deviceHasLowBitAmbient: Boolean,
+		val burnInProtectionRequired: Boolean
 	) : AmbientState
 }

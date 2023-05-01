@@ -7,12 +7,23 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.paddingFromBaseline
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -27,7 +38,16 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.wear.compose.foundation.lazy.ScalingLazyListState
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
-import androidx.wear.compose.material.*
+import androidx.wear.compose.material.Button
+import androidx.wear.compose.material.ButtonDefaults
+import androidx.wear.compose.material.Chip
+import androidx.wear.compose.material.ChipDefaults
+import androidx.wear.compose.material.CircularProgressIndicator
+import androidx.wear.compose.material.Icon
+import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.Switch
+import androidx.wear.compose.material.Text
+import androidx.wear.compose.material.ToggleChip
 import androidx.wear.compose.material.dialog.Alert
 import androidx.wear.compose.material.dialog.Dialog
 import com.google.android.horologist.compose.navscaffold.scalingLazyColumnComposable
@@ -55,6 +75,7 @@ fun SettingsScreen(
 	val serverPort = viewModel.serverPort.collectAsState(initial = 0)
 	val keepScreenOn = viewModel.keepScreenOn.collectAsState(initial = false)
 	val ambientMode = viewModel.ambientMode.collectAsState(initial = false)
+	val useSensorManager = viewModel.useSensormanager.collectAsState(initial = false)
 
 	val coroutineScope = rememberCoroutineScope()
 	var showResetDialog by remember { mutableStateOf(false) }
@@ -112,7 +133,8 @@ fun SettingsScreen(
 						targetState = when (status.value) {
 							ServiceStatus.SCANNING, ServiceStatus.AWAITING_WIFI -> stringResource(R.string.action_cancel_scan)
 							else -> stringResource(R.string.action_scan)
-						}
+						},
+						label = "Scan label animation"
 					) { text ->
 						Text(text)
 					}
@@ -122,14 +144,16 @@ fun SettingsScreen(
 						targetState = when (status.value) {
 							ServiceStatus.SCANNING, ServiceStatus.AWAITING_WIFI -> stringResource(status.value.stringResource)
 							else -> null
-						}
+						},
+						label = "Scan secondary label animation"
 					) { text ->
 						if (text != null) Text(text)
 					}
 				},
 				icon = {
-					Crossfade(status.value) { status ->
-						val progressTransition = updateTransition((1F - progress.value).coerceAtLeast(0F), label = "Progress")
+					Crossfade(status.value, label = "Scan progress crossfade") { status ->
+						val progressTransition =
+							updateTransition((1F - progress.value).coerceAtLeast(0F), label = "Progress")
 						val progressAnimated by progressTransition.animateFloat(
 							label = "Progress",
 							transitionSpec = {
@@ -145,12 +169,14 @@ fun SettingsScreen(
 									.align(Alignment.Center),
 								strokeWidth = 2.dp
 							)
+
 							ServiceStatus.AWAITING_WIFI -> CircularProgressIndicator(
 								modifier = Modifier
 									.size(ChipDefaults.IconSize)
 									.align(Alignment.Center),
 								strokeWidth = 2.dp
 							)
+
 							else -> Icon(
 								Icons.Default.Search,
 								contentDescription = stringResource(R.string.icon_description_search),
@@ -196,6 +222,24 @@ fun SettingsScreen(
 					onToggleAmbientMode(it)
 					coroutineScope.launch {
 						viewModel.onAmbientModeChange(it)
+					}
+				}
+			)
+		}
+
+		// Performance settings header
+		item {
+			ListHeader(R.string.settings_performance)
+		}
+
+		item {
+			ToggleSetting(
+				label = R.string.label_use_sensor_manager,
+				secondaryLabel = if (useSensorManager.value) R.string.label_use_sensor_manager_true else R.string.label_use_sensor_manager_false,
+				checked = useSensorManager.value,
+				onToggle = {
+					coroutineScope.launch {
+						viewModel.onUseSensorManagerChange(it)
 					}
 				}
 			)
@@ -293,11 +337,19 @@ fun ToggleSetting(
 	label: Int,
 	checked: Boolean,
 	enabled: Boolean = true,
-	onToggle: (value: Boolean) -> Unit
+	onToggle: (value: Boolean) -> Unit,
+	secondaryLabel: Int? = null,
 ) {
 	ToggleChip(
 		modifier = Modifier.fillMaxWidth(),
 		label = { Text(stringResource(label)) },
+		secondaryLabel = {
+			if (secondaryLabel != null) {
+				AnimatedContent(targetState = secondaryLabel, label = "Toggle secondary label animation") {
+					Text(stringResource(it))
+				}
+			}
+		},
 		checked = checked,
 		enabled = enabled,
 		toggleControl = {

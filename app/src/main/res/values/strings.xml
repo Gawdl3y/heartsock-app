@@ -19,6 +19,9 @@
     <string name="label_port">Server port</string>
     <string name="label_keep_screen_on">Keep screen on</string>
     <string name="label_ambient_mode">Ambient mode</string>
+    <string name="label_use_sensor_manager">Measure mode</string>
+    <string name="label_use_sensor_manager_false">Default</string>
+    <string name="label_use_sensor_manager_true">Alternate</string>
     <string name="placeholder_none">None set</string>
     <string name="toggle_on">On</string>
     <string name="toggle_off">Off</string>
@@ -42,6 +45,7 @@
     <string name="settings_title">Settings</string>
     <string name="settings_server">Server</string>
     <string name="settings_display">Display</string>
+    <string name="settings_performance">Performance</string>
     <string name="settings_scan_details">Overwrites the above settings if a server is found</string>
 
     <!-- Scan results -->

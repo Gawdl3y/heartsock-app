@@ -12,6 +12,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 	val serverPort = settingsRepository.serverPort
 	val keepScreenOn = settingsRepository.keepScreenOn
 	val ambientMode = settingsRepository.ambientMode
+	val useSensormanager = settingsRepository.useSensorManager
 	val status = statusRepository.status
 	val progress = statusRepository.progress
 
@@ -35,10 +36,15 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 		settingsRepository.setAmbientMode(value)
 	}
 
+	suspend fun onUseSensorManagerChange(value: Boolean) {
+		settingsRepository.setUseSensorManager(value)
+	}
+
 	suspend fun onResetSettings() {
 		settingsRepository.setServerAddress(null)
 		settingsRepository.setServerPort(null)
 		settingsRepository.setKeepScreenOn(null)
 		settingsRepository.setAmbientMode(null)
+		settingsRepository.setUseSensorManager(null)
 	}
 }

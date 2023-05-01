@@ -2,7 +2,11 @@ package dev.gawdl3y.android.heartsock.data
 
 import android.content.Context
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.*
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -50,6 +54,16 @@ class SettingsDataStore(private val context: Context) {
 		}
 	}
 
+	val useSensorManager: Flow<Boolean> = context.dataStore.data.map {
+		it[USE_SENSOR_MANAGER_KEY] ?: false
+	}
+
+	suspend fun setUseSensorManager(useSensorManager: Boolean?) {
+		context.dataStore.edit {
+			it[USE_SENSOR_MANAGER_KEY] = useSensorManager ?: false
+		}
+	}
+
 //	val wakeFrequency: Flow<Int> = context.dataStore.data.map {
 //		it[WAKE_FREQUENCY_KEY] ?: 5
 //	}
@@ -66,6 +80,7 @@ class SettingsDataStore(private val context: Context) {
 		private val SERVER_PORT_KEY = intPreferencesKey("server_port")
 		private val KEEP_SCREEN_ON_KEY = booleanPreferencesKey("keep_screen_on")
 		private val AMBIENT_MODE_KEY = booleanPreferencesKey("ambient_mode")
+		private val USE_SENSOR_MANAGER_KEY = booleanPreferencesKey("use_sensor_manager")
 //		private val WAKE_FREQUENCY_KEY = intPreferencesKey("force_wake_frequency")
 	}
 }

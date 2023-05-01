@@ -1,10 +1,25 @@
 package dev.gawdl3y.android.heartsock.ui
 
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.PlayArrow
@@ -21,7 +36,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
-import androidx.wear.compose.material.*
+import androidx.wear.compose.material.Button
+import androidx.wear.compose.material.ButtonDefaults
+import androidx.wear.compose.material.Chip
+import androidx.wear.compose.material.ChipDefaults
+import androidx.wear.compose.material.CircularProgressIndicator
+import androidx.wear.compose.material.Icon
+import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.Text
 import androidx.wear.compose.navigation.composable
 import dev.gawdl3y.android.heartsock.R
 import dev.gawdl3y.android.heartsock.data.ServiceStatus
@@ -83,13 +105,14 @@ fun ServiceActionButton(
 			}
 		}) {
 			Row(verticalAlignment = Alignment.CenterVertically) {
-				Crossfade(status.value) {
+				Crossfade(status.value, label = "Action crossfade") {
 					when (it) {
 						ServiceStatus.DISCONNECTED -> Icon(
 							Icons.Default.PlayArrow,
 							contentDescription = stringResource(R.string.icon_description_play),
 							modifier = Modifier.padding(horizontal = 14.dp)
 						)
+
 						else -> Icon(
 							Icons.Default.Clear,
 							contentDescription = stringResource(R.string.icon_description_clear),
@@ -108,15 +131,16 @@ fun ServiceActionButton(
 							targetState = bpm.value.roundToInt(),
 							transitionSpec = {
 								if (targetState > initialState) {
-									slideInVertically { height -> height } + fadeIn() with
-											slideOutVertically { height -> -height } + fadeOut()
+									(slideInVertically { height -> height } + fadeIn())
+										.togetherWith(slideOutVertically { height -> -height } + fadeOut())
 								} else {
-									slideInVertically { height -> -height } + fadeIn() with
-											slideOutVertically { height -> height } + fadeOut()
+									(slideInVertically { height -> -height } + fadeIn())
+										.togetherWith(slideOutVertically { height -> height } + fadeOut())
 								}.using(
 									SizeTransform(clip = false)
 								)
-							}
+							},
+							label = "BPM slide"
 						) { targetBpm ->
 							Text(
 								text = targetBpm.toString(),
@@ -156,10 +180,11 @@ fun ScanProgressIndicator(status: State<ServiceStatus>, progress: State<Float>) 
 		enter = scaleIn(initialScale = 0.6f) + fadeIn(),
 		exit = scaleOut(targetScale = 0.6f) + fadeOut()
 	) {
-		Crossfade(status.value) { status ->
+		Crossfade(status.value, label = "Progress crossfade") { status ->
 			when (status) {
 				ServiceStatus.SCANNING -> {
-					val progressTransition = updateTransition((1F - progress.value).coerceAtLeast(0F), label = "Progress")
+					val progressTransition =
+						updateTransition((1F - progress.value).coerceAtLeast(0F), label = "Progress")
 					val progressAnimated by progressTransition.animateFloat(
 						label = "Progress",
 						transitionSpec = {
@@ -175,6 +200,7 @@ fun ScanProgressIndicator(status: State<ServiceStatus>, progress: State<Float>) 
 						modifier = Modifier.size(ButtonDefaults.DefaultButtonSize)
 					)
 				}
+
 				else -> CircularProgressIndicator(
 					indicatorColor = MaterialTheme.colors.primaryVariant,
 					trackColor = Color.Transparent,
