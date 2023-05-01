@@ -216,6 +216,7 @@ fun SettingsScreen(
 		item {
 			ToggleSetting(
 				label = R.string.label_ambient_mode,
+				secondaryLabel = R.string.label_unimplemented,
 				checked = ambientMode.value,
 				enabled = !keepScreenOn.value,
 				onToggle = {

@@ -22,6 +22,7 @@
     <string name="label_use_sensor_manager">Measure mode</string>
     <string name="label_use_sensor_manager_false">Default</string>
     <string name="label_use_sensor_manager_true">Alternate</string>
+    <string name="label_unimplemented">Not implemented</string>
     <string name="placeholder_none">None set</string>
     <string name="toggle_on">On</string>
     <string name="toggle_off">Off</string>
