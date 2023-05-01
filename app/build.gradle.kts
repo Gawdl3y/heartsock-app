@@ -75,6 +75,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.service)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.fragment)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.health.services.client)
     implementation(libs.androidx.futures)
