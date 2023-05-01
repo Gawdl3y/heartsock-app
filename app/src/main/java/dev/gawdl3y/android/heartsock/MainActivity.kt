@@ -19,6 +19,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.wear.ambient.AmbientLifecycleObserver
@@ -166,7 +167,8 @@ class MainActivity : ComponentActivity() {
 				(application as HeartsockApplication).statusRepository.status.collectAsState(initial = ServiceStatus.DISCONNECTED)
 			val ambient = ambientFlow().collectAsStateWithLifecycle(
 				initialValue = AmbientState.Interactive,
-				lifecycle = lifecycle
+				lifecycle = lifecycle,
+				minActiveState = Lifecycle.State.CREATED
 			)
 
 			WearNavScaffold(
